@@ -121,7 +121,7 @@ All colors MUST be HSL.
   }
 }
 
-/* Custom animations for FarmTrust */
+/* Custom animations for myFarmTrust */
 @layer utilities {
   .animate-fade-in {
     animation: fade-in 0.6s ease-out forwards;

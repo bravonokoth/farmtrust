@@ -12,7 +12,7 @@ export const Navigation = () => {
           {/* Logo */}
           <div className="flex items-center space-x-2">
             <Leaf className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold text-primary">FarmTrust</span>
+            <span className="text-2xl font-bold text-primary">myFarmTrust</span>
           </div>
 
           {/* Desktop Navigation */}

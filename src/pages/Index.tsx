@@ -74,7 +74,7 @@ const Index = () => {
             <div>
               <div className="flex items-center space-x-2 mb-6">
                 <Leaf className="h-8 w-8 text-accent" />
-                <span className="text-2xl font-bold">FarmTrust</span>
+                <span className="text-2xl font-bold">myFarmTrust</span>
               </div>
               <p className="text-primary-foreground/80 mb-6">
                 Revolutionizing African agriculture through technology, trust, and community.
@@ -82,7 +82,7 @@ const Index = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center space-x-2">
                   <Mail className="h-4 w-4" />
-                  <span>hello@farmtrust.com</span>
+                  <span>hello@myfarmtrust.com</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Phone className="h-4 w-4" />
@@ -131,7 +131,7 @@ const Index = () => {
 
           <div className="border-t border-primary-foreground/20 mt-12 pt-8 text-center">
             <p className="text-primary-foreground/60">
-              © 2024 FarmTrust. All rights reserved. Building the future of African agriculture.
+              © 2024 myFarmTrust. All rights reserved. Building the future of African agriculture.
             </p>
           </div>
         </div>

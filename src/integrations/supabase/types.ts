@@ -14,7 +14,427 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agent_territories: {
+        Row: {
+          agent_id: string
+          coordinates: Json | null
+          created_at: string
+          farmer_count: number | null
+          id: string
+          territory_name: string
+        }
+        Insert: {
+          agent_id: string
+          coordinates?: Json | null
+          created_at?: string
+          farmer_count?: number | null
+          id?: string
+          territory_name: string
+        }
+        Update: {
+          agent_id?: string
+          coordinates?: Json | null
+          created_at?: string
+          farmer_count?: number | null
+          id?: string
+          territory_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_territories_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agricultural_products: {
+        Row: {
+          category: string
+          created_at: string
+          currency: string | null
+          description: string | null
+          id: string
+          image_url: string | null
+          is_organic: boolean | null
+          name: string
+          price: number
+          specifications: Json | null
+          stock_quantity: number | null
+          supplier_id: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_organic?: boolean | null
+          name: string
+          price: number
+          specifications?: Json | null
+          stock_quantity?: number | null
+          supplier_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          currency?: string | null
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          is_organic?: boolean | null
+          name?: string
+          price?: number
+          specifications?: Json | null
+          stock_quantity?: number | null
+          supplier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agricultural_products_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      farms: {
+        Row: {
+          coordinates: Json | null
+          created_at: string
+          crops: string[] | null
+          farmer_id: string
+          id: string
+          location: string
+          name: string
+          size_hectares: number | null
+          soil_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          coordinates?: Json | null
+          created_at?: string
+          crops?: string[] | null
+          farmer_id: string
+          id?: string
+          location: string
+          name: string
+          size_hectares?: number | null
+          soil_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          coordinates?: Json | null
+          created_at?: string
+          crops?: string[] | null
+          farmer_id?: string
+          id?: string
+          location?: string
+          name?: string
+          size_hectares?: number | null
+          soil_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "farms_farmer_id_fkey"
+            columns: ["farmer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_prices: {
+        Row: {
+          country: string
+          created_at: string
+          crop_name: string
+          currency: string | null
+          date: string
+          id: string
+          market_location: string
+          price_per_kg: number
+          source: string | null
+          updated_at: string
+        }
+        Insert: {
+          country: string
+          created_at?: string
+          crop_name: string
+          currency?: string | null
+          date?: string
+          id?: string
+          market_location: string
+          price_per_kg: number
+          source?: string | null
+          updated_at?: string
+        }
+        Update: {
+          country?: string
+          created_at?: string
+          crop_name?: string
+          currency?: string | null
+          date?: string
+          id?: string
+          market_location?: string
+          price_per_kg?: number
+          source?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          product_id: string
+          quantity: number
+          total_price: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          product_id: string
+          quantity: number
+          total_price: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          product_id?: string
+          quantity?: number
+          total_price?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "agricultural_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          agent_id: string | null
+          created_at: string
+          currency: string | null
+          delivery_address: string | null
+          farmer_id: string
+          id: string
+          notes: string | null
+          status: string | null
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          agent_id?: string | null
+          created_at?: string
+          currency?: string | null
+          delivery_address?: string | null
+          farmer_id: string
+          id?: string
+          notes?: string | null
+          status?: string | null
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string | null
+          created_at?: string
+          currency?: string | null
+          delivery_address?: string | null
+          farmer_id?: string
+          id?: string
+          notes?: string | null
+          status?: string | null
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_farmer_id_fkey"
+            columns: ["farmer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          is_verified: boolean | null
+          location: string | null
+          phone_number: string | null
+          updated_at: string
+          user_id: string
+          user_type: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_verified?: boolean | null
+          location?: string | null
+          phone_number?: string | null
+          updated_at?: string
+          user_id: string
+          user_type?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_verified?: boolean | null
+          location?: string | null
+          phone_number?: string | null
+          updated_at?: string
+          user_id?: string
+          user_type?: string | null
+        }
+        Relationships: []
+      }
+      weather_data: {
+        Row: {
+          conditions: string | null
+          created_at: string
+          date: string
+          forecast: Json | null
+          humidity: number | null
+          id: string
+          location: string
+          precipitation: number | null
+          temperature_max: number | null
+          temperature_min: number | null
+          wind_speed: number | null
+        }
+        Insert: {
+          conditions?: string | null
+          created_at?: string
+          date: string
+          forecast?: Json | null
+          humidity?: number | null
+          id?: string
+          location: string
+          precipitation?: number | null
+          temperature_max?: number | null
+          temperature_min?: number | null
+          wind_speed?: number | null
+        }
+        Update: {
+          conditions?: string | null
+          created_at?: string
+          date?: string
+          forecast?: Json | null
+          humidity?: number | null
+          id?: string
+          location?: string
+          precipitation?: number | null
+          temperature_max?: number | null
+          temperature_min?: number | null
+          wind_speed?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

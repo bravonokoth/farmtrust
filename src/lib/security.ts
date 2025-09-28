@@ -73,6 +73,38 @@ export class RateLimiter {
   }
 }
 
+// Generic input validation function
+export const validateInput = (value: string, type: 'email' | 'password' | 'name' | 'phone'): { isValid: boolean; error?: string } => {
+  switch (type) {
+    case 'email':
+      if (!validateEmail(value)) {
+        return { isValid: false, error: 'Please enter a valid email address' };
+      }
+      break;
+    case 'password':
+      if (value.length < 8) {
+        return { isValid: false, error: 'Password must be at least 8 characters long' };
+      }
+      if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(value)) {
+        return { isValid: false, error: 'Password must contain at least one uppercase letter, one lowercase letter, and one number' };
+      }
+      break;
+    case 'name':
+      if (!validateName(value)) {
+        return { isValid: false, error: 'Name must be 2-50 characters and contain only letters, spaces, hyphens, and apostrophes' };
+      }
+      break;
+    case 'phone':
+      if (!validatePhone(value)) {
+        return { isValid: false, error: 'Please enter a valid phone number' };
+      }
+      break;
+    default:
+      return { isValid: false, error: 'Invalid validation type' };
+  }
+  return { isValid: true };
+};
+
 // Secure form data validation
 export const validateFormData = (data: Record<string, any>): { valid: boolean; errors: Record<string, string> } => {
   const errors: Record<string, string> = {};

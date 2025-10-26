@@ -45,17 +45,19 @@ const Dashboard = () => {
         return;
       }
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/profile/${session.user.id}`);
+      console.log('Fetching profile for user:', session.user.id);
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/profile/${session.user.id}`);
       const profileData = await response.json();
-      if (!response.ok) throw new Error(profileData.error);
+      if (!response.ok) throw new Error(profileData.error || 'Failed to fetch profile');
 
       setProfile(profileData);
     } catch (error: any) {
-      console.error('Error:', error);
+      console.error('Error fetching profile:', error);
       toast({
         title: 'Error loading profile',
-        description: 'Please try refreshing the page.',
-        variant: 'destructive'
+        description: error.message || 'Please try refreshing the page.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -64,13 +66,13 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/signout`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/signout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) throw new Error(data.error || 'Failed to sign out');
 
       await supabase.auth.signOut();
       navigate('/');
@@ -78,18 +80,18 @@ const Dashboard = () => {
       console.error('Error signing out:', error);
       toast({
         title: 'Error signing out',
-        description: error.message,
-        variant: 'destructive'
+        description: error.message || 'Network error - check console',
+        variant: 'destructive',
       });
     }
   };
 
   if (loading) {
     return (
-      <div className='min-h-screen bg-background flex items-center justify-center'>
-        <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4'></div>
-          <p className='text-muted-foreground'>Loading your dashboard...</p>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
     );
@@ -97,8 +99,8 @@ const Dashboard = () => {
 
   if (!profile) {
     return (
-      <div className='min-h-screen bg-background flex items-center justify-center'>
-        <Card className='w-full max-w-md'>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Profile Not Found</CardTitle>
             <CardDescription>
@@ -106,7 +108,7 @@ const Dashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate('/auth')} className='w-full'>
+            <Button onClick={() => navigate('/auth')} className="w-full">
               Go to Sign In
             </Button>
           </CardContent>
@@ -119,17 +121,17 @@ const Dashboard = () => {
     switch (profile.user_type) {
       case 'farmer':
         return (
-          <Tabs defaultValue='overview' className='space-y-6'>
-            <TabsList className='grid w-full grid-cols-5'>
-              <TabsTrigger value='overview'>Overview</TabsTrigger>
-              <TabsTrigger value='weather'>Weather</TabsTrigger>
-              <TabsTrigger value='market'>Market</TabsTrigger>
-              <TabsTrigger value='farms'>My Farms</TabsTrigger>
-              <TabsTrigger value='ai'>AI Assistant</TabsTrigger>
+          <Tabs defaultValue="overview" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="weather">Weather</TabsTrigger>
+              <TabsTrigger value="market">Market</TabsTrigger>
+              <TabsTrigger value="farms">My Farms</TabsTrigger>
+              <TabsTrigger value="ai">AI Assistant</TabsTrigger>
             </TabsList>
 
-            <TabsContent value='overview' className='space-y-6'>
-              <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+            <TabsContent value="overview" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <WeatherWidget />
                 <MarketPricesWidget />
                 <FarmMapWidget />
@@ -137,19 +139,19 @@ const Dashboard = () => {
               <MarketplaceWidget />
             </TabsContent>
 
-            <TabsContent value='weather'>
+            <TabsContent value="weather">
               <WeatherWidget expanded />
             </TabsContent>
 
-            <TabsContent value='market'>
+            <TabsContent value="market">
               <MarketPricesWidget expanded />
             </TabsContent>
 
-            <TabsContent value='farms'>
+            <TabsContent value="farms">
               <FarmMapWidget expanded />
             </TabsContent>
 
-            <TabsContent value='ai'>
+            <TabsContent value="ai">
               <AIFarmAssistant />
             </TabsContent>
           </Tabs>
@@ -160,19 +162,19 @@ const Dashboard = () => {
 
       case 'supplier':
         return (
-          <Tabs defaultValue='products' className='space-y-6'>
-            <TabsList className='grid w-full grid-cols-4'>
-              <TabsTrigger value='products'>My Products</TabsTrigger>
-              <TabsTrigger value='orders'>Orders</TabsTrigger>
-              <TabsTrigger value='analytics'>Analytics</TabsTrigger>
-              <TabsTrigger value='marketplace'>Browse</TabsTrigger>
+          <Tabs defaultValue="products" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="products">My Products</TabsTrigger>
+              <TabsTrigger value="orders">Orders</TabsTrigger>
+              <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              <TabsTrigger value="marketplace">Browse</TabsTrigger>
             </TabsList>
 
-            <TabsContent value='products'>
+            <TabsContent value="products">
               <Card>
                 <CardHeader>
-                  <CardTitle className='flex items-center space-x-2'>
-                    <Package className='h-5 w-5' />
+                  <CardTitle className="flex items-center space-x-2">
+                    <Package className="h-5 w-5" />
                     <span>My Products</span>
                   </CardTitle>
                   <CardDescription>
@@ -180,40 +182,40 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <p className='text-muted-foreground'>Product management coming soon...</p>
+                  <p className="text-muted-foreground">Product management coming soon...</p>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value='orders'>
+            <TabsContent value="orders">
               <Card>
                 <CardHeader>
-                  <CardTitle className='flex items-center space-x-2'>
-                    <ShoppingCart className='h-5 w-5' />
+                  <CardTitle className="flex items-center space-x-2">
+                    <ShoppingCart className="h-5 w-5" />
                     <span>Order Management</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className='text-muted-foreground'>Order management coming soon...</p>
+                  <p className="text-muted-foreground">Order management coming soon...</p>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value='analytics'>
+            <TabsContent value="analytics">
               <Card>
                 <CardHeader>
-                  <CardTitle className='flex items-center space-x-2'>
-                    <BarChart3 className='h-5 w-5' />
+                  <CardTitle className="flex items-center space-x-2">
+                    <BarChart3 className="h-5 w-5" />
                     <span>Sales Analytics</span>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className='text-muted-foreground'>Analytics dashboard coming soon...</p>
+                  <p className="text-muted-foreground">Analytics dashboard coming soon...</p>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value='marketplace'>
+            <TabsContent value="marketplace">
               <MarketplaceWidget />
             </TabsContent>
           </Tabs>
@@ -235,50 +237,60 @@ const Dashboard = () => {
 
   const getRoleIcon = (userType: string) => {
     switch (userType) {
-      case 'farmer': return <Calendar className='h-4 w-4' />;
-      case 'agent': return <Users className='h-4 w-4' />;
-      case 'supplier': return <Package className='h-4 w-4' />;
-      case 'admin': return <User className='h-4 w-4' />;
-      default: return <Calendar className='h-4 w-4' />;
+      case 'farmer':
+        return <Calendar className="h-4 w-4" />;
+      case 'agent':
+        return <Users className="h-4 w-4" />;
+      case 'supplier':
+        return <Package className="h-4 w-4" />;
+      case 'admin':
+        return <User className="h-4 w-4" />;
+      default:
+        return <Calendar className="h-4 w-4" />;
     }
   };
 
   const getRoleColor = (userType: string) => {
     switch (userType) {
-      case 'farmer': return 'bg-primary text-primary-foreground';
-      case 'agent': return 'bg-trust text-trust-foreground';
-      case 'supplier': return 'bg-earth text-earth-foreground';
-      case 'admin': return 'bg-secondary text-secondary-foreground';
-      default: return 'bg-secondary text-secondary-foreground';
+      case 'farmer':
+        return 'bg-primary text-primary-foreground';
+      case 'agent':
+        return 'bg-trust text-trust-foreground';
+      case 'supplier':
+        return 'bg-earth text-earth-foreground';
+      case 'admin':
+        return 'bg-secondary text-secondary-foreground';
+      default:
+        return 'bg-secondary text-secondary-foreground';
     }
   };
 
   return (
-    <div className='min-h-screen bg-background'>
-      <header className='border-b bg-card shadow-soft'>
-        <div className='container mx-auto px-4 py-4 flex items-center justify-between'>
-          <div className='flex items-core space-x-4'>
-            <h1 className='text-2xl font-bold text-foreground'>
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card shadow-soft">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-2xl font-bold text-foreground">
               Welcome, {profile.full_name}
             </h1>
             <Badge className={`flex items-center space-x-1 ${getRoleColor(profile.user_type)}`}>
               {getRoleIcon(profile.user_type)}
-              <span className='capitalize'>{profile.user_type}</span>
+              <span className="capitalize">{profile.user_type}</span>
             </Badge>
             {profile.is_verified && (
-              <Badge variant='outline' className='text-trust border-trust'>
+              <Badge variant="outline" className="text-trust border-trust">
                 ✓ Verified
               </Badge>
             )}
           </div>
-          <Button onClick={handleSignOut} variant='outline' size='sm'>
-            <LogOut className='h-4 w-4 mr-2' />
+          <Button onClick={handleSignOut} variant="outline" size="sm">
+            <LogOut className="h-4 w-4 mr-2" />
             Sign Out
           </Button>
         </div>
       </header>
 
-      <main className='container mx-auto px-4 py-8'>
+      <main className="container mx-auto px-4 py-8">
         {getDashboardContent()}
       </main>
     </div>

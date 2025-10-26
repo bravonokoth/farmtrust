@@ -61,21 +61,23 @@ const Auth = () => {
         return;
       }
 
+      console.log('SignUp attempt:', { email, userType, redirectTo: import.meta.env.VITE_API_URL || 'http://localhost:8081' });
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: { full_name: fullName, phone_number: phoneNumber, location, user_type: userType },
-          emailRedirectTo: `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/dashboard`,
+          emailRedirectTo: `${import.meta.env.VITE_API_URL || 'http://localhost:8081'}/dashboard`,
         },
       });
 
       if (authError) {
+        console.error('Supabase signUp error:', authError);
         throw new Error(authError.message);
       }
 
-      // Backend sync
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/register`, {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -88,17 +90,19 @@ const Auth = () => {
         }),
       });
 
+      console.log('Fetch response:', response.status, response.statusText);
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!response.ok) throw new Error(data.error || 'Failed to register');
 
       toast({
         title: 'Account created!',
         description: 'Please check your email to verify your account.',
       });
     } catch (error: any) {
+      console.error('SignUp error:', error);
       toast({
         title: 'Error creating account',
-        description: error.message,
+        description: error.message || 'Network error - check console',
         variant: 'destructive',
       });
     } finally {
@@ -117,23 +121,38 @@ const Auth = () => {
         return;
       }
 
+      console.log('SignIn attempt:', { email });
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('Supabase signIn error:', error);
         throw new Error(error.message);
       }
+
+      // Call backend login endpoint
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      console.log('Backend login response:', response.status, response.statusText);
+      const loginData = await response.json();
+      if (!response.ok) throw new Error(loginData.error || 'Failed to fetch profile');
 
       toast({
         title: 'Welcome back!',
         description: 'You have successfully signed in.',
       });
     } catch (error: any) {
+      console.error('SignIn error:', error);
       toast({
         title: 'Error signing in',
-        description: error.message,
+        description: error.message || 'Network error - check console',
         variant: 'destructive',
       });
     } finally {
@@ -188,7 +207,6 @@ const Auth = () => {
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
-
             <TabsContent value="signin">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
@@ -225,7 +243,6 @@ const Auth = () => {
                 </Button>
               </form>
             </TabsContent>
-
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
@@ -266,7 +283,6 @@ const Auth = () => {
                   </Select>
                   <p className="text-sm text-muted-foreground">{getUserTypeDescription(userType)}</p>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="fullName">Full Name</Label>
                   <Input
@@ -278,7 +294,6 @@ const Auth = () => {
                     required
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -290,7 +305,6 @@ const Auth = () => {
                     required
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -302,7 +316,6 @@ const Auth = () => {
                     required
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="phoneNumber">Phone Number</Label>
                   <Input
@@ -313,7 +326,6 @@ const Auth = () => {
                     onChange={(e) => setPhoneNumber(e.target.value)}
                   />
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="location">Location</Label>
                   <Input
@@ -324,7 +336,6 @@ const Auth = () => {
                     onChange={(e) => setLocation(e.target.value)}
                   />
                 </div>
-
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? (
                     <>

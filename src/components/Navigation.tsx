@@ -1,9 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Leaf, ShoppingCart, GraduationCap, Bot, Users, Menu } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { session } = useAuth();
 
   return (
     <nav className="bg-background/95 backdrop-blur-sm border-b border-border sticky top-0 z-50">
@@ -17,26 +21,46 @@ export const Navigation = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#marketplace" className="text-foreground hover:text-primary transition-colors">
+            <Link to="/#marketplace" className="text-foreground hover:text-primary transition-colors">
               Marketplace
-            </a>
-            <a href="#ai-doctor" className="text-foreground hover:text-primary transition-colors">
+            </Link>
+            <Link to="/#ai-doctor" className="text-foreground hover:text-primary transition-colors">
               AI Doctor
-            </a>
-            <a href="#learning" className="text-foreground hover:text-primary transition-colors">
+            </Link>
+            <Link to="/#learning" className="text-foreground hover:text-primary transition-colors">
               Learning Hub
-            </a>
-            <a href="#community" className="text-foreground hover:text-primary transition-colors">
+            </Link>
+            <Link to="/#community" className="text-foreground hover:text-primary transition-colors">
               Community
-            </a>
+            </Link>
           </div>
 
           {/* Action Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <Button variant="outline">Sign In</Button>
-            <Button className="bg-gradient-to-r from-primary to-accent text-primary-foreground">
-              Get Started
-            </Button>
+            {!session ? (
+              <>
+                <Button asChild variant="outline">
+                  <Link to="/auth">Sign In</Link>
+                </Button>
+                <Button asChild className="bg-gradient-to-r from-primary to-accent text-primary-foreground">
+                  <Link to="/auth">Get Started</Link>
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button asChild variant="outline">
+                  <Link to="/dashboard">Dashboard</Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                  }}
+                >
+                  Sign Out
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -54,23 +78,44 @@ export const Navigation = () => {
         {isMenuOpen && (
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col space-y-4">
-              <a href="#marketplace" className="text-foreground hover:text-primary transition-colors">
+              <Link to="/#marketplace" className="text-foreground hover:text-primary transition-colors">
                 Marketplace
-              </a>
-              <a href="#ai-doctor" className="text-foreground hover:text-primary transition-colors">
+              </Link>
+              <Link to="/#ai-doctor" className="text-foreground hover:text-primary transition-colors">
                 AI Doctor
-              </a>
-              <a href="#learning" className="text-foreground hover:text-primary transition-colors">
+              </Link>
+              <Link to="/#learning" className="text-foreground hover:text-primary transition-colors">
                 Learning Hub
-              </a>
-              <a href="#community" className="text-foreground hover:text-primary transition-colors">
+              </Link>
+              <Link to="/#community" className="text-foreground hover:text-primary transition-colors">
                 Community
-              </a>
+              </Link>
               <div className="flex flex-col space-y-2 pt-4">
-                <Button variant="outline" className="w-full">Sign In</Button>
-                <Button className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground">
-                  Get Started
-                </Button>
+                {!session ? (
+                  <>
+                    <Button asChild variant="outline" className="w-full">
+                      <Link to="/auth">Sign In</Link>
+                    </Button>
+                    <Button asChild className="w-full bg-gradient-to-r from-primary to-accent text-primary-foreground">
+                      <Link to="/auth">Get Started</Link>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button asChild variant="outline" className="w-full">
+                      <Link to="/dashboard">Dashboard</Link>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={async () => {
+                        await supabase.auth.signOut();
+                      }}
+                    >
+                      Sign Out
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -79,3 +124,5 @@ export const Navigation = () => {
     </nav>
   );
 };
+
+export default Navigation;

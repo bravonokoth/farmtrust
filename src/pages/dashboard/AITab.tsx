@@ -26,13 +26,12 @@ interface Conversation {
 }
 
 // ──────────────────────────────────────────────────────────────
-// GEMINI CONFIG
-// ──────────────────────────────────────────────────────────────
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent`;
-const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY; // Set in .env.local
+// GEMINI CONFIG – **stable** endpoint (no /beta)
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:streamGenerateContent';
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 if (!GEMINI_API_KEY) {
-  console.error('NEXT_PUBLIC_GEMINI_API_KEY is missing in .env.local');
+  console.error('VITE_GEMINI_API_KEY is missing in .env');
 }
 
 export const AITab = () => {
@@ -42,11 +41,11 @@ export const AITab = () => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [streaming, setStreaming] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ──────────────────────────────────────────────────────────────
-  // 1. Load User & Conversations
+  // 1. Load profile & conversations
   // ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const loadUser = async () => {
@@ -60,32 +59,29 @@ export const AITab = () => {
         .single();
 
       if (profile) {
-        setUserId(profile.id);
+        setProfileId(profile.id);
         loadConversations(profile.id);
       }
     };
-
     loadUser();
   }, []);
 
-  const loadConversations = async (profileId: string) => {
+  const loadConversations = async (userId: string) => {
     const { data } = await supabase
       .from('ai_conversations')
       .select('id, title, updated_at')
-      .eq('user_id', profileId)
+      .eq('user_id', userId)
       .order('updated_at', { ascending: false });
 
     setConversations(data ?? []);
-    if (data?.length && !activeConv) {
-      setActiveConv(data[0].id);
-    }
+    if (data?.length && !activeConv) setActiveConv(data[0].id);
   };
 
   // ──────────────────────────────────────────────────────────────
-  // 2. Load Messages + Realtime
+  // 2. Load messages + Realtime (type-safe cast)
   // ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!activeConv || !userId) {
+    if (!activeConv || !profileId) {
       setMessages([]);
       return;
     }
@@ -98,24 +94,43 @@ export const AITab = () => {
         .eq('conversation_id', activeConv)
         .order('created_at', { ascending: true });
 
-      setMessages(data ?? []);
+      // ── TYPE-SAFE CAST ───────────────────────────────────────
+      const typed = (data ?? []).map(
+        (m): Message => ({
+          ...m,
+          role: m.role === 'assistant' ? 'assistant' : 'user', // <-- force literal
+        })
+      );
+      setMessages(typed);
       setLoading(false);
     };
 
     loadMessages();
 
     const channel = supabase
-      .channel(`messages-${activeConv}`)
+      .channel(`msg-${activeConv}`)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'ai_messages',
           filter: `conversation_id=eq.${activeConv}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+          const newMsg = payload.new as any;
+          const typedMsg: Message = {
+            ...newMsg,
+            role: newMsg.role === 'assistant' ? 'assistant' : 'user',
+          };
+
+          if (payload.eventType === 'INSERT') {
+            setMessages((prev) => [...prev, typedMsg]);
+          } else if (payload.eventType === 'UPDATE') {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === typedMsg.id ? typedMsg : m))
+            );
+          }
         }
       )
       .subscribe();
@@ -123,59 +138,49 @@ export const AITab = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeConv, userId]);
+  }, [activeConv, profileId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   // ──────────────────────────────────────────────────────────────
-  // 3. Create New Conversation
+  // 3. New conversation
   // ──────────────────────────────────────────────────────────────
   const createConversation = async (): Promise<string> => {
-    if (!userId) throw new Error('User not found');
+    if (!profileId) throw new Error('No profile');
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('ai_conversations')
-      .insert({
-        user_id: userId,
-        title: 'New Chat',
-      })
+      .insert({ user_id: profileId, title: 'New Chat' })
       .select()
       .single();
 
-    if (error) throw error;
+    if (!data) throw new Error('Failed to create conv');
 
-    setConversations((prev) => [data, ...prev]);
+    setConversations((p) => [data, ...p]);
     setActiveConv(data.id);
+    setMessages([]);
     return data.id;
   };
 
   // ──────────────────────────────────────────────────────────────
-  // 4. File Upload → Base64 (for Gemini Vision)
+  // 4. File → base64 (Gemini Vision)
   // ──────────────────────────────────────────────────────────────
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!activeConv || acceptedFiles.length === 0) return;
-
-    const file = acceptedFiles[0];
-    const reader = new FileReader();
-
-    reader.onload = async () => {
-      const base64 = reader.result as string;
-      const mimeType = file.type;
-
-      const userMsg = {
+  const onDrop = useCallback(
+    async (files: File[]) => {
+      if (!activeConv || !files[0]) return;
+      const file = files[0];
+      const base64 = await fileToBase64(file);
+      await supabase.from('ai_messages').insert({
         conversation_id: activeConv,
-        role: 'user' as const,
+        role: 'user',
         content: `Uploaded: ${file.name}`,
-        image_url: `data:${mimeType};base64,${base64.split(',')[1]}`,
-      };
-
-      await supabase.from('ai_messages').insert(userMsg);
-    };
-
-    reader.readAsDataURL(file);
-  }, [activeConv]);
+        image_url: base64,
+      });
+    },
+    [activeConv]
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -183,55 +188,52 @@ export const AITab = () => {
     multiple: false,
   });
 
+  const fileToBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   // ──────────────────────────────────────────────────────────────
-  // 5. Send Message + Call Gemini API (Streaming)
+  // 5. Send → Gemini (streaming)
   // ──────────────────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!input.trim() || !activeConv || streaming || !GEMINI_API_KEY) return;
 
-    const userMessage = input.trim();
+    const userText = input.trim();
     setInput('');
     setStreaming(true);
 
-    // Insert user message
+    // 1. Insert user message
     const { data: userMsg } = await supabase
       .from('ai_messages')
       .insert({
         conversation_id: activeConv,
         role: 'user',
-        content: userMessage,
+        content: userText,
       })
       .select()
       .single();
 
-    // Prepare Gemini request body
-    const geminiMessages = messages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => {
-        if (m.image_url && m.image_url.startsWith('data:')) {
+    // 2. Build Gemini payload
+    const contents = messages
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => {
+        const base = { role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] };
+        if (m.image_url?.startsWith('data:')) {
           const [mime, data] = m.image_url.split(';base64,');
-          return {
-            role: m.role,
-            parts: [
-              { text: m.content },
-              {
-                inline_data: {
-                  mime_type: mime.replace('data:', ''),
-                  data: data,
-                },
-              },
-            ],
-          };
+          base.parts.push({
+            inlineData: { mimeType: mime.replace('data:', ''), data },
+          });
         }
-        return { role: m.role, parts: [{ text: m.content }] };
+        return base;
       });
 
-    geminiMessages.push({
-      role: 'user',
-      parts: [{ text: userMessage }],
-    });
+    contents.push({ role: 'user', parts: [{ text: userText }] });
 
-    // Insert assistant placeholder
+    // 3. Assistant placeholder
     const { data: assistantMsg } = await supabase
       .from('ai_messages')
       .insert({
@@ -242,74 +244,69 @@ export const AITab = () => {
       .select()
       .single();
 
-    let assistantContent = '';
+    let accumulated = '';
 
     try {
-      const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      const resp = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: geminiMessages,
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
-          },
+          contents,
+          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
         }),
       });
 
-      if (!response.ok) throw new Error(`Gemini error: ${response.status}`);
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(`Gemini ${resp.status}: ${txt}`);
+      }
 
-      const reader = response.body?.getReader();
+      const reader = resp.body!.getReader();
       const decoder = new TextDecoder();
 
       while (true) {
-        const { done, value } = await reader!.read();
+        const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter(line => line.trim());
+        const lines = chunk.split('\n').filter((l) => l.trim());
 
         for (const line of lines) {
           try {
             const json = JSON.parse(line);
-            const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              assistantContent += text;
+            const delta = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (delta) {
+              accumulated += delta;
               await supabase
                 .from('ai_messages')
-                .update({ content: assistantContent })
-                .eq('id', assistantMsg.id);
+                .update({ content: accumulated })
+                .eq('id', assistantMsg!.id);
             }
           } catch {}
         }
       }
 
-      // Auto-title
-      if (messages.length === 1) {
-        const title = userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : '');
-        await supabase
-          .from('ai_conversations')
-          .update({ title })
-          .eq('id', activeConv);
-        setConversations(prev =>
-          prev.map(c => (c.id === activeConv ? { ...c, title } : c))
+      // Auto-title first message
+      if (messages.length === 0) {
+        const title = userText.slice(0, 50) + (userText.length > 50 ? '...' : '');
+        await supabase.from('ai_conversations').update({ title }).eq('id', activeConv);
+        setConversations((p) =>
+          p.map((c) => (c.id === activeConv ? { ...c, title } : c))
         );
       }
-    } catch (error: any) {
-      await supabase
-        .from('ai_messages')
-        .insert({
-          conversation_id: activeConv,
-          role: 'assistant',
-          content: `Error: ${error.message}`,
-        });
+    } catch (e: any) {
+      await supabase.from('ai_messages').insert({
+        conversation_id: activeConv,
+        role: 'assistant',
+        content: `Error: ${e.message}`,
+      });
     } finally {
       setStreaming(false);
     }
   };
 
   // ──────────────────────────────────────────────────────────────
-  // UI (Same as before)
+  // UI
   // ──────────────────────────────────────────────────────────────
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[calc(100vh-12rem)]">
@@ -318,7 +315,7 @@ export const AITab = () => {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>AI Assistant</CardTitle>
-            <Button size="sm" onClick={() => createConversation().then(() => setMessages([]))}>
+            <Button size="sm" onClick={() => createConversation()} disabled={!profileId}>
               New Chat
             </Button>
           </div>
@@ -342,7 +339,7 @@ export const AITab = () => {
         </CardContent>
       </Card>
 
-      {/* Chat Area */}
+      {/* Chat */}
       <Card className="md:col-span-3 flex flex-col">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -351,7 +348,7 @@ export const AITab = () => {
           </CardTitle>
         </CardHeader>
 
-        <CardContent className="flex-1 overflow-y-auto space-y-4 pb-20">
+        <CardContent className="flex-1 overflow-y-auto space-y-4 pb-4">
           {loading ? (
             <div className="flex justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />
@@ -367,7 +364,7 @@ export const AITab = () => {
                 key={m.id}
                 className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className="flex gap-2 max-w-md">
+                <div className="flex gap-2 max-w-2xl">
                   {m.role === 'assistant' && (
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <Bot className="h-5 w-5" />
@@ -378,19 +375,15 @@ export const AITab = () => {
                       m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
                     }`}
                   >
-                    {m.image_url && m.image_url.startsWith('data:') && (
-                      <img
-                        src={m.image_url}
-                        alt="Attachment"
-                        className="max-w-xs rounded mb-2"
-                      />
+                    {m.image_url?.startsWith('data:') && (
+                      <img src={m.image_url} alt="attachment" className="max-w-xs rounded mb-2" />
                     )}
                     {m.role === 'assistant' ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm max-w-none">
                         {m.content}
                       </ReactMarkdown>
                     ) : (
-                      <p>{m.content}</p>
+                      <p className="whitespace-pre-wrap">{m.content}</p>
                     )}
                   </div>
                   {m.role === 'user' && (
@@ -412,7 +405,7 @@ export const AITab = () => {
           <div ref={messagesEndRef} />
         </CardContent>
 
-        {/* Input Area */}
+        {/* Input */}
         <div className="border-t p-4 space-y-3">
           <div
             {...getRootProps()}
@@ -435,15 +428,8 @@ export const AITab = () => {
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
               disabled={!activeConv || streaming}
             />
-            <Button
-              onClick={sendMessage}
-              disabled={!activeConv || !input.trim() || streaming}
-            >
-              {streaming ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
+            <Button onClick={sendMessage} disabled={!activeConv || !input.trim() || streaming}>
+              {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </div>

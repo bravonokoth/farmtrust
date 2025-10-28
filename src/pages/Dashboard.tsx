@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogOut, Calendar, Users, Package } from 'lucide-react';
+import { LogOut, Calendar, Users, Package, ShoppingCart, BarChart } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -13,6 +13,11 @@ import { AIFarmAssistant } from '@/components/AIFarmAssistant';
 import { FarmMapWidget } from '@/components/FarmMapWidget';
 import { MarketplaceWidget } from '@/components/MarketplaceWidget';
 import { AgentDashboard } from '@/components/AgentDashboard';
+import { OverviewTab } from './dashboard/OverviewTab';
+import { WeatherTab } from './dashboard/WeatherTab';
+import { MarketTab } from './dashboard/MarketTab';
+import { FarmsTab } from './dashboard/FarmsTab';
+import { AITab } from './dashboard/AITab';
 
 interface Profile {
   id: string;
@@ -200,33 +205,28 @@ const Dashboard = () => {
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="weather">Weather</TabsTrigger>
               <TabsTrigger value="market">Market</TabsTrigger>
-              <TabsTrigger value="farms">My Farms</TabsTrigger>
+              <TabsTrigger value="farms">Farms</TabsTrigger>
               <TabsTrigger value="ai">AI Assistant</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <WeatherWidget />
-                <MarketPricesWidget />
-                <FarmMapWidget />
-              </div>
-              <MarketplaceWidget />
+            <TabsContent value="overview">
+              <OverviewTab />
             </TabsContent>
 
             <TabsContent value="weather">
-              <WeatherWidget expanded />
+              <WeatherTab />
             </TabsContent>
 
             <TabsContent value="market">
-              <MarketPricesWidget expanded />
+              <MarketTab />
             </TabsContent>
 
             <TabsContent value="farms">
-              <FarmMapWidget expanded />
+              <FarmsTab />
             </TabsContent>
 
             <TabsContent value="ai">
-              <AIFarmAssistant />
+              <AITab />
             </TabsContent>
           </Tabs>
         );
@@ -277,7 +277,7 @@ const Dashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Bar0Chart className="h-5 w-5" />
+                    <BarChart className="h-5 w-5" />
                     <span>Sales Analytics</span>
                   </CardTitle>
                 </CardHeader>

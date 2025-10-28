@@ -4,31 +4,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- CSP – unchanged, still secure -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https://zfhaymmfpmydesvfhxlr.supabase.co http://localhost:5000;"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; media-src 'self' data: blob:; connect-src 'self' https://zfhaymmfpmydesvfhxlr.supabase.co wss://zfhaymmfpmydesvfhxlr.supabase.co https://generativelanguage.googleapis.com http://localhost:5000;"
     />
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
     <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
     <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
     <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()" />
-    <title>FarmTrust - Revolutionary Agricultural Marketplace for Africa</title>
+
+    <!-- ==== SITE INFO (re-branded to Lovable) ==== -->
+    <title>Lovable - Revolutionary Agricultural Marketplace for Africa</title>
     <meta
       name="description"
       content="Africa's first comprehensive agricultural marketplace connecting farmers, buyers, and agribusinesses. Trade produce, access AI-powered farming insights, and build sustainable agriculture."
     />
-    <meta name="author" content="FarmTrust" />
-    <meta property="og:title" content="FarmTrust - Revolutionary Agricultural Marketplace for Africa" />
+    <meta name="author" content="Lovable" />
+
+    <!-- ==== OPEN GRAPH ==== -->
+    <meta property="og:title" content="Lovable - Revolutionary Agricultural Marketplace for Africa" />
     <meta
       property="og:description"
       content="Africa's first comprehensive agricultural marketplace connecting farmers, buyers, and agribusinesses. Trade produce, access AI-powered farming insights, and build sustainable agriculture."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="" />
+    <meta property="og:url" content="https://farmtrust-africa.vercel.app/" />
+    <meta property="og:image" content="/logo.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Lovable Logo" />
+    <meta property="og:image:type" content="image/png" />
+
+    <!-- ==== TWITTER CARD ==== -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@FarmTrust" />
-    <meta name="twitter:image" content="" />
+    <meta name="twitter:site" content="@LovableApp" />
+    <meta name="twitter:title" content="Lovable - Revolutionary Agricultural Marketplace for Africa" />
+    <meta name="twitter:description" content="Africa's first comprehensive agricultural marketplace..." />
+    <meta name="twitter:image" content="/logo.png" />
+    <meta name="twitter:image:alt" content="Lovable Logo" />
   </head>
   <body>
     <div id="root"></div>

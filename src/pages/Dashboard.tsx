@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogOut, Cloud, TrendingUp, MessageSquare, Map, ShoppingCart, Users, Package, BarChart3, Calendar } from 'lucide-react';
+import { LogOut, Calendar, Users, Package } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -25,6 +25,7 @@ interface Profile {
   created_at?: string;
   updated_at?: string;
   user_id?: string;
+  email?: string;
 }
 
 const Dashboard = () => {
@@ -33,54 +34,129 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    checkUser();
-  }, []);
-
+  // Load profile directly from Supabase
   const checkUser = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
         navigate('/auth');
         return;
       }
 
-      console.log('Fetching profile for user:', session.user.id);
+      console.log('Session user ID:', session.user.id);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/profile/${session.user.id}`);
-      const profileData = await response.json();
-      if (!response.ok) throw new Error(profileData.error || 'Failed to fetch profile');
+      // 1. Try to fetch profile
+      let { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .single();
+
+      // 2. If not found → create it
+      if (error?.code === 'PGRST116' || !profileData) {
+        const newProfileData = {
+          user_id: session.user.id,
+          full_name: session.user.user_metadata.full_name || session.user.email?.split('@')[0] || 'User',
+          email: session.user.email,
+          phone_number: session.user.user_metadata.phone_number || '',
+          location: session.user.user_metadata.location || '',
+          user_type: (session.user.user_metadata.user_type as 'farmer' | 'agent' | 'supplier' | 'admin') || 'farmer',
+          is_verified: false,
+        };
+
+        const { data: createdProfile, error: insertError } = await supabase
+          .from('profiles')
+          .insert(newProfileData)
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+        profileData = createdProfile;
+
+        toast({
+          title: 'Profile Created',
+          description: 'Welcome! Your profile has been set up.',
+        });
+      }
+
+      if (error && error.code !== 'PGRST116') throw error;
 
       setProfile(profileData);
     } catch (error: any) {
-      console.error('Error fetching profile:', error);
+      console.error('Profile load failed:', error);
       toast({
-        title: 'Error loading profile',
-        description: error.message || 'Please try refreshing the page.',
+        title: 'Offline Mode',
+        description: 'Dashboard loaded with limited features.',
         variant: 'destructive',
       });
+
+      // Fallback: Show minimal UI
+      const fallback: Profile = {
+        id: 'offline',
+        user_id: 'offline',
+        full_name: 'Guest User',
+        user_type: 'farmer',
+        location: '',
+        phone_number: '',
+        is_verified: false,
+      };
+      setProfile(fallback);
     } finally {
       setLoading(false);
     }
   };
 
+  // Real-time profile updates
+  useEffect(() => {
+    checkUser();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        navigate('/auth');
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        checkUser();
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate]);
+
+  // Subscribe to profile changes
+  useEffect(() => {
+    if (!profile?.user_id || profile.user_id === 'offline') return;
+
+    const channel = supabase
+      .channel('profile-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: `user_id=eq.${profile.user_id}`,
+        },
+        (payload) => {
+          setProfile(payload.new as Profile);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.user_id]);
+
   const handleSignOut = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/signout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to sign out');
-
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       navigate('/');
     } catch (error: any) {
-      console.error('Error signing out:', error);
       toast({
-        title: 'Error signing out',
-        description: error.message || 'Network error - check console',
+        title: 'Sign Out Failed',
+        description: error.message,
         variant: 'destructive',
       });
     }
@@ -102,10 +178,8 @@ const Dashboard = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Profile Not Found</CardTitle>
-            <CardDescription>
-              There was an issue loading your profile. Please try signing in again.
-            </CardDescription>
+            <CardTitle>Access Denied</CardTitle>
+            <CardDescription>Please sign in to continue.</CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={() => navigate('/auth')} className="w-full">
@@ -177,9 +251,7 @@ const Dashboard = () => {
                     <Package className="h-5 w-5" />
                     <span>My Products</span>
                   </CardTitle>
-                  <CardDescription>
-                    Manage your agricultural products and inventory
-                  </CardDescription>
+                  <CardDescription>Manage your agricultural products and inventory</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground">Product management coming soon...</p>
@@ -205,7 +277,7 @@ const Dashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <BarChart3 className="h-5 w-5" />
+                    <Bar0Chart className="h-5 w-5" />
                     <span>Sales Analytics</span>
                   </CardTitle>
                 </CardHeader>
@@ -226,9 +298,7 @@ const Dashboard = () => {
           <Card>
             <CardHeader>
               <CardTitle>Welcome to FarmTrust</CardTitle>
-              <CardDescription>
-                Your dashboard is being prepared...
-              </CardDescription>
+              <CardDescription>Your dashboard is being prepared...</CardDescription>
             </CardHeader>
           </Card>
         );
@@ -237,31 +307,21 @@ const Dashboard = () => {
 
   const getRoleIcon = (userType: string) => {
     switch (userType) {
-      case 'farmer':
-        return <Calendar className="h-4 w-4" />;
-      case 'agent':
-        return <Users className="h-4 w-4" />;
-      case 'supplier':
-        return <Package className="h-4 w-4" />;
-      case 'admin':
-        return <User className="h-4 w-4" />;
-      default:
-        return <Calendar className="h-4 w-4" />;
+      case 'farmer': return <Calendar className="h-4 w-4" />;
+      case 'agent': return <Users className="h-4 w-4" />;
+      case 'supplier': return <Package className="h-4 w-4" />;
+      case 'admin': return <Users className="h-4 w-4" />;
+      default: return <Calendar className="h-4 w-4" />;
     }
   };
 
   const getRoleColor = (userType: string) => {
     switch (userType) {
-      case 'farmer':
-        return 'bg-primary text-primary-foreground';
-      case 'agent':
-        return 'bg-trust text-trust-foreground';
-      case 'supplier':
-        return 'bg-earth text-earth-foreground';
-      case 'admin':
-        return 'bg-secondary text-secondary-foreground';
-      default:
-        return 'bg-secondary text-secondary-foreground';
+      case 'farmer': return 'bg-primary text-primary-foreground';
+      case 'agent': return 'bg-trust text-trust-foreground';
+      case 'supplier': return 'bg-earth text-earth-foreground';
+      case 'admin': return 'bg-secondary text-secondary-foreground';
+      default: return 'bg-secondary text-secondary-foreground';
     }
   };
 
@@ -279,7 +339,7 @@ const Dashboard = () => {
             </Badge>
             {profile.is_verified && (
               <Badge variant="outline" className="text-trust border-trust">
-                ✓ Verified
+                Verified
               </Badge>
             )}
           </div>

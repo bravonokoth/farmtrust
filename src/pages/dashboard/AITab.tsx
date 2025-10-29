@@ -16,7 +16,6 @@ interface Message {
   content: string;
   created_at: string;
   conversation_id: string;
-  image_url?: string;
 }
 
 interface Conversation {
@@ -25,8 +24,7 @@ interface Conversation {
   updated_at: string;
 }
 
-// ──────────────────────────────────────────────────────────────
-// GEMINI CONFIG – **stable** endpoint (no /beta)
+// Gemini Config
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:streamGenerateContent';
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -44,9 +42,7 @@ export const AITab = () => {
   const [profileId, setProfileId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // ──────────────────────────────────────────────────────────────
-  // 1. Load profile & conversations
-  // ──────────────────────────────────────────────────────────────
+  // Load profile & conversations
   useEffect(() => {
     const loadUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -77,9 +73,7 @@ export const AITab = () => {
     if (data?.length && !activeConv) setActiveConv(data[0].id);
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // 2. Load messages + Realtime (type-safe cast)
-  // ──────────────────────────────────────────────────────────────
+  // Load messages + Realtime
   useEffect(() => {
     if (!activeConv || !profileId) {
       setMessages([]);
@@ -88,19 +82,27 @@ export const AITab = () => {
 
     const loadMessages = async () => {
       setLoading(true);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('ai_messages')
-        .select('id, role, content, created_at, conversation_id, image_url')
+        .select('id, role, content, created_at, conversation_id')
         .eq('conversation_id', activeConv)
         .order('created_at', { ascending: true });
 
-      // ── TYPE-SAFE CAST ───────────────────────────────────────
-      const typed = (data ?? []).map(
-        (m): Message => ({
-          ...m,
-          role: m.role === 'assistant' ? 'assistant' : 'user', // <-- force literal
-        })
-      );
+      if (error) {
+        console.error('Error loading messages:', error);
+        setLoading(false);
+        return;
+      }
+
+      // Type-safe transformation
+      const typed: Message[] = (data ?? []).map((m) => ({
+        id: m.id,
+        role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+        content: m.content || '',
+        created_at: m.created_at,
+        conversation_id: m.conversation_id,
+      }));
+      
       setMessages(typed);
       setLoading(false);
     };
@@ -118,10 +120,13 @@ export const AITab = () => {
           filter: `conversation_id=eq.${activeConv}`,
         },
         (payload) => {
-          const newMsg = payload.new as any;
+          const newMsg = payload.new as Record<string, any>;
           const typedMsg: Message = {
-            ...newMsg,
-            role: newMsg.role === 'assistant' ? 'assistant' : 'user',
+            id: newMsg.id,
+            role: (newMsg.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+            content: newMsg.content || '',
+            created_at: newMsg.created_at,
+            conversation_id: newMsg.conversation_id,
           };
 
           if (payload.eventType === 'INSERT') {
@@ -144,9 +149,7 @@ export const AITab = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ──────────────────────────────────────────────────────────────
-  // 3. New conversation
-  // ──────────────────────────────────────────────────────────────
+  // New conversation
   const createConversation = async (): Promise<string> => {
     if (!profileId) throw new Error('No profile');
 
@@ -164,19 +167,18 @@ export const AITab = () => {
     return data.id;
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // 4. File → base64 (Gemini Vision)
-  // ──────────────────────────────────────────────────────────────
+  // File upload (store as base64 in content with marker)
   const onDrop = useCallback(
     async (files: File[]) => {
       if (!activeConv || !files[0]) return;
       const file = files[0];
       const base64 = await fileToBase64(file);
+      
+      // Store image in content with special marker
       await supabase.from('ai_messages').insert({
         conversation_id: activeConv,
         role: 'user',
-        content: `Uploaded: ${file.name}`,
-        image_url: base64,
+        content: `[IMAGE:${file.name}]${base64}`,
       });
     },
     [activeConv]
@@ -196,9 +198,7 @@ export const AITab = () => {
       reader.readAsDataURL(file);
     });
 
-  // ──────────────────────────────────────────────────────────────
-  // 5. Send → Gemini (streaming)
-  // ──────────────────────────────────────────────────────────────
+  // Send message with Gemini streaming
   const sendMessage = async () => {
     if (!input.trim() || !activeConv || streaming || !GEMINI_API_KEY) return;
 
@@ -206,53 +206,80 @@ export const AITab = () => {
     setInput('');
     setStreaming(true);
 
-    // 1. Insert user message
-    const { data: userMsg } = await supabase
-      .from('ai_messages')
-      .insert({
-        conversation_id: activeConv,
-        role: 'user',
-        content: userText,
-      })
-      .select()
-      .single();
+    try {
+      // Insert user message
+      const { data: userMsg, error: userError } = await supabase
+        .from('ai_messages')
+        .insert({
+          conversation_id: activeConv,
+          role: 'user',
+          content: userText,
+        })
+        .select()
+        .single();
 
-    // 2. Build Gemini payload
-    const contents = messages
-      .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => {
-        const base = { role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] };
-        if (m.image_url?.startsWith('data:')) {
-          const [mime, data] = m.image_url.split(';base64,');
-          base.parts.push({
-            inlineData: { mimeType: mime.replace('data:', ''), data },
-          });
+      if (userError) throw userError;
+
+      // Build Gemini payload
+      const contents = messages.map((m) => {
+        const parts: any[] = [];
+        
+        // Check if message contains image
+        if (m.content.startsWith('[IMAGE:')) {
+          const imageMatch = m.content.match(/\[IMAGE:([^\]]+)\](data:[^;]+;base64,[^\s]+)/);
+          if (imageMatch) {
+            const [, filename, dataUrl] = imageMatch;
+            const [mimeType, base64Data] = dataUrl.split(';base64,');
+            const mime = mimeType.replace('data:', '');
+            
+            parts.push({ text: `Image: ${filename}` });
+            parts.push({
+              inline_data: {
+                mime_type: mime,
+                data: base64Data,
+              },
+            });
+          }
+        } else {
+          parts.push({ text: m.content });
         }
-        return base;
+        
+        return {
+          role: m.role === 'user' ? 'user' : 'model',
+          parts,
+        };
       });
 
-    contents.push({ role: 'user', parts: [{ text: userText }] });
+      contents.push({ 
+        role: 'user', 
+        parts: [{ text: userText }] 
+      });
 
-    // 3. Assistant placeholder
-    const { data: assistantMsg } = await supabase
-      .from('ai_messages')
-      .insert({
-        conversation_id: activeConv,
-        role: 'assistant',
-        content: '',
-      })
-      .select()
-      .single();
+      // Create assistant placeholder
+      const { data: assistantMsg, error: assistantError } = await supabase
+        .from('ai_messages')
+        .insert({
+          conversation_id: activeConv,
+          role: 'assistant',
+          content: '',
+        })
+        .select()
+        .single();
 
-    let accumulated = '';
+      if (assistantError || !assistantMsg) throw assistantError;
 
-    try {
+      let accumulated = '';
+
+      // Stream from Gemini
       const resp = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents,
-          generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
+          generationConfig: { 
+            temperature: 0.7, 
+            maxOutputTokens: 2048 
+          },
         }),
       });
 
@@ -280,34 +307,67 @@ export const AITab = () => {
               await supabase
                 .from('ai_messages')
                 .update({ content: accumulated })
-                .eq('id', assistantMsg!.id);
+                .eq('id', assistantMsg.id);
             }
-          } catch {}
+          } catch (e) {
+            // Skip JSON parse errors
+          }
         }
       }
 
       // Auto-title first message
       if (messages.length === 0) {
         const title = userText.slice(0, 50) + (userText.length > 50 ? '...' : '');
-        await supabase.from('ai_conversations').update({ title }).eq('id', activeConv);
+        await supabase
+          .from('ai_conversations')
+          .update({ title })
+          .eq('id', activeConv);
         setConversations((p) =>
           p.map((c) => (c.id === activeConv ? { ...c, title } : c))
         );
       }
     } catch (e: any) {
+      console.error('Send message error:', e);
       await supabase.from('ai_messages').insert({
         conversation_id: activeConv,
         role: 'assistant',
-        content: `Error: ${e.message}`,
+        content: `Error: ${e.message || 'Failed to send message'}`,
       });
     } finally {
       setStreaming(false);
     }
   };
 
-  // ──────────────────────────────────────────────────────────────
-  // UI
-  // ──────────────────────────────────────────────────────────────
+  // Helper to render message content
+  const renderMessageContent = (message: Message) => {
+    // Check if message contains an image
+    if (message.content.startsWith('[IMAGE:')) {
+      const imageMatch = message.content.match(/\[IMAGE:([^\]]+)\](data:[^;]+;base64,[^\s]+)/);
+      if (imageMatch) {
+        const [, filename, dataUrl] = imageMatch;
+        return (
+          <div>
+            <img src={dataUrl} alt={filename} className="max-w-xs rounded mb-2" />
+            <p className="text-xs text-muted-foreground">{filename}</p>
+          </div>
+        );
+      }
+    }
+    
+    // Regular text message
+    if (message.role === 'assistant') {
+      return (
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {message.content}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+    
+    return <p className="whitespace-pre-wrap">{message.content}</p>;
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-[calc(100vh-12rem)]">
       {/* Sidebar */}
@@ -344,7 +404,7 @@ export const AITab = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5" />
-            Farm AI Assistant (Gemini)
+            Farm AI Assistant
           </CardTitle>
         </CardHeader>
 
@@ -375,16 +435,7 @@ export const AITab = () => {
                       m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
                     }`}
                   >
-                    {m.image_url?.startsWith('data:') && (
-                      <img src={m.image_url} alt="attachment" className="max-w-xs rounded mb-2" />
-                    )}
-                    {m.role === 'assistant' ? (
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-sm max-w-none">
-                        {m.content}
-                      </ReactMarkdown>
-                    ) : (
-                      <p className="whitespace-pre-wrap">{m.content}</p>
-                    )}
+                    {renderMessageContent(m)}
                   </div>
                   {m.role === 'user' && (
                     <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
